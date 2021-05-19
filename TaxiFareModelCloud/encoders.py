@@ -2,6 +2,40 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from TaxiFareModelCloud.utils import haversine_vectorized
 
+class SizeOptimizer(BaseEstimator, TransformerMixin):
+    """
+        optimizes the size of the dataset by analysing the memory usage per column
+    """
+    def __init__(self):
+        pass
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X, y=None):
+        assert isinstance(X, pd.DataFrame)
+        """
+        Reduces size of dataframe by downcasting numeircal columns
+        :param df: input dataframe
+        :param verbose: print size reduction if set to True
+        :param kwargs:
+        :return: df optimized
+        """
+        assert isinstance(X, pd.DataFrame)
+        X_ = X.copy()
+    
+        in_size = X.memory_usage(index=True).sum()
+        # Optimized size here
+        for type in ["float", "integer"]:
+            l_cols = list(X_.select_dtypes(include=type))
+            for col in l_cols:
+                X_[col] = pd.to_numeric(X_[col], downcast=type)
+                if type == "float":
+                    X_[col] = pd.to_numeric(X_[col], downcast="integer")
+        out_size = X_.memory_usage(index=True).sum()
+        ratio = (1 - round(out_size / in_size, 2)) * 100
+        GB = out_size / 1000000000
+        print("optimized size by {} % | {} GB".format(ratio, GB))
+        return X_
+
 
 class TimeFeaturesEncoder(BaseEstimator, TransformerMixin):
     """

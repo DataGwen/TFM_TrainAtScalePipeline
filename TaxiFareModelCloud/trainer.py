@@ -3,7 +3,7 @@ from termcolor import colored
 import mlflow
 from google.cloud import storage
 from TaxiFareModelCloud.data import get_data, clean_data
-from TaxiFareModelCloud.encoders import TimeFeaturesEncoder, DistanceTransformer
+from TaxiFareModelCloud.encoders import TimeFeaturesEncoder, DistanceTransformer, SizeOptimizer
 from TaxiFareModelCloud.utils import compute_rmse
 from memoized_property import memoized_property
 from mlflow.tracking import MlflowClient
@@ -44,6 +44,12 @@ class Trainer(object):
             ('time_enc', TimeFeaturesEncoder('pickup_datetime')),
             ('ohe', OneHotEncoder(handle_unknown='ignore'))
         ])
+        
+        optimizer_pipe = Pipeline([
+            ('optimizer', SizeOptimizer())
+        ])
+
+                     
         preproc_pipe = ColumnTransformer([
             ('distance', dist_pipe, [
                 "pickup_latitude",
@@ -53,8 +59,10 @@ class Trainer(object):
             ]),
             ('time', time_pipe, ['pickup_datetime'])
         ], remainder="drop")
+        
 
         self.pipeline = Pipeline([
+            ('optimizer', optimizer_pipe),
             ('preproc', preproc_pipe),
             ('linear_model', LinearRegression())
         ])
@@ -75,7 +83,6 @@ class Trainer(object):
         """Save the model into a .joblib format"""
         joblib.dump(self.pipeline, 'model.joblib')
         print(colored("model.joblib saved locally", "green"))
-        
     
     
     def upload_model_to_gcp(self):
@@ -85,6 +92,14 @@ class Trainer(object):
         bucket = client.bucket(BUCKET_NAME)
         blob = bucket.blob(STORAGE_LOCATION)
         blob.upload_from_filename('model.joblib')
+        
+    def download_model_to_gcp(self):
+        
+        print(STORAGE_LOCATION)
+        client = storage.Client()
+        bucket = client.bucket(BUCKET_NAME)
+        blob = bucket.blob(STORAGE_LOCATION)
+        blob.download_to_filename('model.joblib')
     
     def save_model(self):
         """method that saves the model into a .joblib file and uploads it on Google Storage /models folder
@@ -98,8 +113,6 @@ class Trainer(object):
         # Implement here
         self.upload_model_to_gcp()
         print(f"uploaded model.joblib to gcp cloud storage under \n => {STORAGE_LOCATION}")
-    
-
     
 
     # MLFlow methods
